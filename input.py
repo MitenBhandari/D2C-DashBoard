@@ -50,7 +50,8 @@ required_columns = [
     "Pickup Date (Date)",
     "Delivery Date (Date)",
     "Final Status",
-    "Zone"
+    "Zone",
+    "Reshipped"
 ]
 
 df = df[required_columns]

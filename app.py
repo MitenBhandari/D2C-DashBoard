@@ -56,6 +56,12 @@ zone_filter = st.sidebar.multiselect(
     sorted(df["Zone"].dropna().unique())
 )
 
+status_filter = st.sidebar.multiselect(
+    "Final Status",
+    sorted(df["Final Status"].dropna().unique())
+)
+
+
 # ---------------- APPLY FILTERS ----------------
 filtered_df = df.copy()
 
@@ -73,8 +79,22 @@ if courier_filter:
 
 if zone_filter:
     filtered_df = filtered_df[filtered_df["Zone"].isin(zone_filter)]
+    
+if status_filter:
+    filtered_df = filtered_df[filtered_df["Final Status"].isin(status_filter)]
+
 
 # ---------------- KPI CALCULATIONS ----------------
+reshipped_orders = (
+    filtered_df["Reshipped"]
+    .astype(str)
+    .str.strip()
+    .str.lower()
+    .isin(["yes", "y", "true", "1"])
+    .sum()
+)
+
+
 final_status = (
     filtered_df["Final Status"]
     .astype(str)
@@ -129,17 +149,23 @@ intransit_out_tat = (
 # ---------------- DASHBOARD HEADER ----------------
 st.title("Order Operations Dashboard")
 
-row1 = st.columns(5)
-row1[0].metric("Total Orders", total_orders)
-row1[1].metric("Delivered", delivered_orders)
-row1[2].metric("In Transit", intransit_orders)
-row1[3].metric("RTO", rto_orders)
+c1, c2, c3 = st.columns(3)
 
-row2 = st.columns(4)
-row2[0].metric("Delivered In-TAT", delivered_in_tat)
-row2[1].metric("Delivered Out-TAT", delivered_out_tat)
-row2[2].metric("In-Transit In-TAT", intransit_in_tat)
-row2[3].metric("In-Transit Out-TAT", intransit_out_tat)
+# ---------------- Column 1: Overall ----------------
+c1.metric("Total Orders", total_orders)
+c1.metric("RTO", rto_orders)
+c1.metric("Reshipped", reshipped_orders)
+
+# ---------------- Column 2: Delivered ----------------
+c2.metric("Delivered", delivered_orders)
+c2.metric("Delivered In-TAT", delivered_in_tat)
+c2.metric("Delivered Out-TAT", delivered_out_tat)
+
+# ---------------- Column 3: In-Transit ----------------
+c3.metric("In Transit", intransit_orders)
+c3.metric("In-Transit In-TAT", intransit_in_tat)
+c3.metric("In-Transit Out-TAT", intransit_out_tat)
+
 
 st.divider()
 
@@ -324,7 +350,7 @@ st.plotly_chart(intransit_fig, use_container_width=True)
 
 
 # ---------------- SHIPPING PROVIDER PERFORMANCE ----------------
-st.subheader("Shipping Provider Performance")
+st.subheader("Shipping Provider Load Distribution")
 
 provider_perf = (
     filtered_df
@@ -333,17 +359,48 @@ provider_perf = (
     .reset_index(name="Count")
 )
 
-provider_fig = px.bar(
+provider_fig = px.pie(
     provider_perf,
-    x="Shipping provider",
-    y="Count",
-    title="Orders by Shipping Provider"
+    names="Shipping provider",
+    values="Count",
+    title="Orders by Shipping Provider",
+    hole=0.4
+)
+
+provider_fig.update_traces(
+    hovertemplate="Provider: %{label}<br>Orders: %{value}<extra></extra>"
 )
 
 selected_provider = st.plotly_chart(
     provider_fig,
     use_container_width=True
 )
+
+
+st.subheader("Shipping Provider SLA Performance")
+
+provider_sla = (
+    filtered_df
+    .groupby(["Shipping provider", "Placed to Delivery TAT Status"])
+    .size()
+    .reset_index(name="Count")
+)
+
+provider_sla_fig = px.bar(
+    provider_sla,
+    x="Shipping provider",
+    y="Count",
+    color="Placed to Delivery TAT Status",
+    title="Provider-wise In-TAT vs Out-TAT",
+    text="Count"
+)
+
+provider_sla_fig.update_traces(
+    hovertemplate="Count: %{y}<extra></extra>"
+)
+
+st.plotly_chart(provider_sla_fig, use_container_width=True)
+
 
 # Courier breakup
 st.subheader("Courier Split for Selected Provider")
@@ -369,9 +426,62 @@ courier_pie = px.pie(
 
 st.plotly_chart(courier_pie, use_container_width=True)
 
+st.subheader("Courier SLA Performance")
+
+courier_sla = (
+    filtered_df
+    .groupby(["Shipping Courier", "Placed to Delivery TAT Status"])
+    .size()
+    .reset_index(name="Count")
+)
+
+courier_sla_fig = px.bar(
+    courier_sla,
+    x="Shipping Courier",
+    y="Count",
+    color="Placed to Delivery TAT Status",
+    title="Courier-wise In-TAT vs Out-TAT",
+    text="Count"
+)
+
+courier_sla_fig.update_traces(
+    hovertemplate="Count: %{y}<extra></extra>"
+)
+
+st.plotly_chart(courier_sla_fig, use_container_width=True)
+
+st.subheader("Zone SLA Distribution (Delivered Orders)")
+
+zone_sla = (
+    filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
+    .groupby(["Zone", "Placed to Delivery TAT Status"])
+    .size()
+    .reset_index(name="Count")
+)
+
+zone = st.selectbox("Select Zone", zone_sla["Zone"].unique())
+
+zone_pie_df = zone_sla[zone_sla["Zone"] == zone]
+
+zone_pie = px.pie(
+    zone_pie_df,
+    names="Placed to Delivery TAT Status",
+    values="Count",
+    title=f"SLA Split – {zone}"
+)
+
+zone_pie.update_traces(
+    hovertemplate="Status: %{label}<br>Count: %{value}<extra></extra>"
+)
+
+st.plotly_chart(zone_pie, use_container_width=True)
+
+
 
 # ---------------- DATA PREVIEW ----------------
 st.subheader("Filtered Data Preview")
 st.dataframe(filtered_df, use_container_width=True)
 #streamlit run app.py
+#python -m venv venv
+#.\venv\Scripts\Activate.ps1
 

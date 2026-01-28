@@ -30,6 +30,20 @@ def load_data():
 
 df = load_data()
 
+# ---------------- DERIVED COLUMNS ----------------
+if "Reshipped" in df.columns:
+    df["Reshipped_Flag"] = (
+        df["Reshipped"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .isin(["yes", "y", "true", "1", "reshipped"])
+    )
+else:
+    df["Reshipped_Flag"] = False
+
+
 # ---------------- SIDEBAR FILTERS ----------------
 st.sidebar.header("Filters")
 
@@ -85,15 +99,7 @@ if status_filter:
 
 
 # ---------------- KPI CALCULATIONS ----------------
-reshipped_orders = (
-    filtered_df["Reshipped"]
-    .astype(str)
-    .str.strip()
-    .str.lower()
-    .isin(["yes", "y", "true", "1"])
-    .sum()
-)
-
+reshipped_orders = filtered_df["Reshipped_Flag"].sum()
 
 final_status = (
     filtered_df["Final Status"]
@@ -481,7 +487,7 @@ st.plotly_chart(zone_pie, use_container_width=True)
 # ---------------- DATA PREVIEW ----------------
 st.subheader("Filtered Data Preview")
 st.dataframe(filtered_df, use_container_width=True)
-#streamlit run app.py
+#python -m streamlit run app.py
 #python -m venv venv
 #.\venv\Scripts\Activate.ps1
 

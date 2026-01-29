@@ -348,17 +348,18 @@ st.plotly_chart(trend_fig, use_container_width=True)
 
 pincode_master = load_pincode()
 
-filtered_df = filtered_df.merge(
+map_df_base = filtered_df.merge(
     pincode_master,
     left_on="Order Pincode",
     right_on="pincode",
     how="left"
 )
 
+
 st.subheader("Order Density by Pincode")
 
 map_df = (
-    filtered_df
+    map_df_base
     .dropna(subset=["latitude", "longitude"])
     .groupby(["Order Pincode", "latitude", "longitude"])
     .size()

@@ -224,10 +224,10 @@ c3.markdown(
 st.divider()
 
 @st.cache_data
-def load_pincode_master():
-    return pd.read_csv("pincode_master.csv")
+def load_pincode():
+    return pd.read_csv("pincode.csv")
 
-pincode_master = load_pincode_master()
+pincode_master = load_pincode()
 
 filtered_df = filtered_df.merge(
     pincode_master,

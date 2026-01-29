@@ -656,27 +656,42 @@ st.plotly_chart(courier_pie, use_container_width=True)
 
 st.subheader("Courier SLA Performance")
 
+# 🔽 Provider dropdown
+provider_for_courier_sla = st.selectbox(
+    "Select Shipping Provider for Courier SLA",
+    sorted(filtered_df["Shipping provider"].dropna().unique()),
+    key="courier_sla_provider"
+)
+
+# 🔍 Filter by selected provider
+courier_sla_df = filtered_df[
+    filtered_df["Shipping provider"] == provider_for_courier_sla
+]
+
+# 📊 Aggregate courier SLA
 courier_sla = (
-    filtered_df
+    courier_sla_df
     .groupby(["Shipping Courier", "Placed to Delivery TAT Status"])
     .size()
     .reset_index(name="Count")
 )
 
+# 📈 Plot
 courier_sla_fig = px.bar(
     courier_sla,
     x="Shipping Courier",
     y="Count",
     color="Placed to Delivery TAT Status",
-    title="Courier-wise In-TAT vs Out-TAT",
+    title=f"Courier-wise In-TAT vs Out-TAT – {provider_for_courier_sla}",
     text="Count"
 )
 
 courier_sla_fig.update_traces(
-    hovertemplate="Count: %{y}<extra></extra>"
+    hovertemplate="Courier: %{x}<br>Count: %{y}<extra></extra>"
 )
 
 st.plotly_chart(courier_sla_fig, use_container_width=True)
+
 
 st.subheader("Zone SLA Distribution (Delivered Orders)")
 

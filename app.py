@@ -165,51 +165,60 @@ c1, c2, c3 = st.columns(3)
 # ---------------- Column 1: Overall ----------------
 c1.metric(
     "Total Orders",
-    total_orders
+    total_orders,
+    delta_color="off"
 )
 c1.metric(
     "RTO",
     rto_orders,
-    f"{pct(rto_orders, total_orders)}%"
+    f"{pct(rto_orders, total_orders)}%",
+    delta_color="off"
 )
 c1.metric(
     "Reshipped",
     reshipped_orders,
-    f"{pct(reshipped_orders, total_orders)}%"
+    f"{pct(reshipped_orders, total_orders)}%",
+    delta_color="off"
 )
 
 # ---------------- Column 2: Delivered ----------------
 c2.metric(
     "Delivered",
     delivered_orders,
-    f"{pct(delivered_orders, total_orders)}%"
+    f"{pct(delivered_orders, total_orders)}%",
+    delta_color="off"
 )
 c2.metric(
     "Delivered In-TAT",
     delivered_in_tat,
-    f"{pct(delivered_in_tat, delivered_orders)}%"
+    f"{pct(delivered_in_tat, delivered_orders)}%",
+    delta_color="off"
 )
 c2.metric(
     "Delivered Out-TAT",
     delivered_out_tat,
-    f"{pct(delivered_out_tat, delivered_orders)}%"
+    f"{pct(delivered_out_tat, delivered_orders)}%",
+    delta_color="off"
 )
 
 # ---------------- Column 3: In-Transit ----------------
 c3.metric(
     "In Transit",
     intransit_orders,
-    f"{pct(intransit_orders, total_orders)}%"
+    f"{pct(intransit_orders, total_orders)}%",
+    delta_color="off"
 )
 c3.metric(
     "In-Transit In-TAT",
     intransit_in_tat,
-    f"{pct(intransit_in_tat, intransit_orders)}%"
+    f"{pct(intransit_in_tat, intransit_orders)}%",
+    delta_color="off"
 )
 c3.metric(
     "In-Transit Out-TAT",
     intransit_out_tat,
-    f"{pct(intransit_out_tat, intransit_orders)}%"
+    f"{pct(intransit_out_tat, intransit_orders)}%",
+    delta_color="off"
 )
 
 st.divider()
@@ -530,8 +539,8 @@ st.dataframe(filtered_df, use_container_width=True)
 #python -m venv venv
 #.\venv\Scripts\Activate.ps1
 
-#git add requirements.txt
-#git commit -m "Add requirements"
+#git add Consolidated_Report.xlsx Output_Report.csv app.py input.py
+#git commit -m "Add All"
 #git push
 
 

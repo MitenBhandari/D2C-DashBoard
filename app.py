@@ -240,6 +240,110 @@ def load_pincode():
 
     return df
 
+# ---------------- EXECUTIVE SUMMARY LINE ----------------
+
+# Overall Delivered SLA
+overall_intat_pct = pct(delivered_in_tat, delivered_orders)
+
+# Zone risk (Delivered orders only)
+zone_risk = (
+    filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
+    .groupby("Zone")
+    .agg(
+        total=("Placed to Delivery TAT Status", "count"),
+        outtat=("Placed to Delivery TAT Status",
+                lambda x: (x.str.lower() == "outtat").sum())
+    )
+    .reset_index()
+)
+
+zone_risk["outtat_pct"] = (zone_risk["outtat"] / zone_risk["total"] * 100).round(1)
+
+worst_zone_row = zone_risk.sort_values("outtat_pct", ascending=False).iloc[0]
+worst_zone = worst_zone_row["Zone"]
+worst_zone_pct = worst_zone_row["outtat_pct"]
+
+# Courier risk (Delivered orders only)
+courier_risk = (
+    filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
+    .groupby("Shipping Courier")
+    .agg(
+        total=("Placed to Delivery TAT Status", "count"),
+        outtat=("Placed to Delivery TAT Status",
+                lambda x: (x.str.lower() == "outtat").sum())
+    )
+    .reset_index()
+)
+
+courier_risk["outtat_pct"] = (
+    courier_risk["outtat"] / courier_risk["total"] * 100
+).round(1)
+
+worst_courier = courier_risk.sort_values(
+    "outtat_pct", ascending=False
+).iloc[0]["Shipping Courier"]
+
+# Render summary line
+st.markdown(
+    f"""
+    **📌 Overall Delivery SLA:** {overall_intat_pct}% In-TAT  
+    | **Biggest Risk:** {worst_zone} Zone ({worst_zone_pct}% Out-TAT)  
+    | **Worst Courier:** {worst_courier}
+    """
+)
+
+# ---------------- DELIVERED IN-TAT TREND ----------------
+
+trend_df = filtered_df[
+    filtered_df["Final Status"].str.lower() == "delivered"
+].copy()
+
+trend_df["order_date"] = trend_df["UC Order Date (Date)"].dt.date
+
+trend_agg = (
+    trend_df
+    .groupby("order_date")
+    .agg(
+        delivered_orders=("Placed to Delivery TAT Status", "count"),
+        delivered_intat=("Placed to Delivery TAT Status",
+                          lambda x: (x.str.lower() == "intat").sum())
+    )
+    .reset_index()
+)
+
+trend_agg["Delivered In-TAT %"] = (
+    trend_agg["delivered_intat"] / trend_agg["delivered_orders"] * 100
+).round(1)
+
+st.subheader("Delivered In-TAT Trend")
+
+trend_fig = px.line(
+    trend_agg,
+    x="order_date",
+    y="Delivered In-TAT %",
+    markers=True,
+    title="Delivered In-TAT % Over Time"
+)
+
+trend_fig.update_traces(
+    line=dict(width=3),
+    hovertemplate="Date: %{x}<br>In-TAT: %{y}%<extra></extra>"
+)
+
+trend_fig.update_layout(
+    yaxis=dict(range=[0, 100]),
+    margin={"r":0,"t":40,"l":0,"b":0}
+)
+
+# Optional SLA target line (recommended)
+trend_fig.add_hline(
+    y=95,
+    line_dash="dash",
+    annotation_text="Target: 95%",
+    annotation_position="top left"
+)
+
+st.plotly_chart(trend_fig, use_container_width=True)
 
 
 pincode_master = load_pincode()

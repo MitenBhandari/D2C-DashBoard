@@ -223,6 +223,48 @@ c3.markdown(
 
 st.divider()
 
+@st.cache_data
+def load_pincode_master():
+    return pd.read_csv("pincode_master.csv")
+
+pincode_master = load_pincode_master()
+
+filtered_df = filtered_df.merge(
+    pincode_master,
+    left_on="Order Pincode",
+    right_on="pincode",
+    how="left"
+)
+
+st.subheader("Order Density by Pincode")
+
+map_df = (
+    filtered_df
+    .dropna(subset=["latitude", "longitude"])
+    .groupby(["Order Pincode", "latitude", "longitude"])
+    .size()
+    .reset_index(name="Orders")
+)
+
+fig = px.scatter_mapbox(
+    map_df,
+    lat="latitude",
+    lon="longitude",
+    size="Orders",
+    color="Orders",
+    zoom=4,
+    hover_name="Order Pincode",
+    title="Order Density Map"
+)
+
+fig.update_layout(
+    mapbox_style="open-street-map",
+    margin={"r":0,"t":40,"l":0,"b":0}
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+
 st.subheader("SLA Split (Delivered vs In-Transit)")
 
 status_choice = st.radio(

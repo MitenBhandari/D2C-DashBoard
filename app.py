@@ -155,6 +155,8 @@ intransit_out_tat = (
     .sum()
 )
 
+def green(text):
+    return f"<span style='color:#2ecc71; font-weight:600'>{text}</span>"
 
 
 # ---------------- DASHBOARD HEADER ----------------
@@ -163,63 +165,61 @@ st.title("Order Operations Dashboard")
 c1, c2, c3 = st.columns(3)
 
 # ---------------- Column 1: Overall ----------------
-c1.metric(
-    "Total Orders",
-    total_orders,
-    delta_color="off"
+c1.markdown("### Total Orders")
+c1.markdown(green(f"{total_orders}"), unsafe_allow_html=True)
+
+c1.markdown("### RTO")
+c1.markdown(
+    green(f"{rto_orders} ({pct(rto_orders, total_orders)}%)"),
+    unsafe_allow_html=True
 )
-c1.metric(
-    "RTO",
-    rto_orders,
-    f"{pct(rto_orders, total_orders)}%",
-    delta_color="off"
+
+c1.markdown("### Reshipped")
+c1.markdown(
+    green(f"{reshipped_orders} ({pct(reshipped_orders, total_orders)}%)"),
+    unsafe_allow_html=True
 )
-c1.metric(
-    "Reshipped",
-    reshipped_orders,
-    f"{pct(reshipped_orders, total_orders)}%",
-    delta_color="off"
-)
+
 
 # ---------------- Column 2: Delivered ----------------
-c2.metric(
-    "Delivered",
-    delivered_orders,
-    f"{pct(delivered_orders, total_orders)}%",
-    delta_color="off"
-)
-c2.metric(
-    "Delivered In-TAT",
-    delivered_in_tat,
-    f"{pct(delivered_in_tat, delivered_orders)}%",
-    delta_color="off"
-)
-c2.metric(
-    "Delivered Out-TAT",
-    delivered_out_tat,
-    f"{pct(delivered_out_tat, delivered_orders)}%",
-    delta_color="off"
+c2.markdown("### Delivered")
+c2.markdown(
+    green(f"{delivered_orders} ({pct(delivered_orders, total_orders)}%)"),
+    unsafe_allow_html=True
 )
 
+c2.markdown("### Delivered In-TAT")
+c2.markdown(
+    green(f"{delivered_in_tat} ({pct(delivered_in_tat, delivered_orders)}%)"),
+    unsafe_allow_html=True
+)
+
+c2.markdown("### Delivered Out-TAT")
+c2.markdown(
+    green(f"{delivered_out_tat} ({pct(delivered_out_tat, delivered_orders)}%)"),
+    unsafe_allow_html=True
+)
+
+
 # ---------------- Column 3: In-Transit ----------------
-c3.metric(
-    "In Transit",
-    intransit_orders,
-    f"{pct(intransit_orders, total_orders)}%",
-    delta_color="off"
+c3.markdown("### In-Transit")
+c3.markdown(
+    green(f"{intransit_orders} ({pct(intransit_orders, total_orders)}%)"),
+    unsafe_allow_html=True
 )
-c3.metric(
-    "In-Transit In-TAT",
-    intransit_in_tat,
-    f"{pct(intransit_in_tat, intransit_orders)}%",
-    delta_color="off"
+
+c3.markdown("### In-Transit In-TAT")
+c3.markdown(
+    green(f"{intransit_in_tat} ({pct(intransit_in_tat, intransit_orders)}%)"),
+    unsafe_allow_html=True
 )
-c3.metric(
-    "In-Transit Out-TAT",
-    intransit_out_tat,
-    f"{pct(intransit_out_tat, intransit_orders)}%",
-    delta_color="off"
+
+c3.markdown("### In-Transit Out-TAT")
+c3.markdown(
+    green(f"{intransit_out_tat} ({pct(intransit_out_tat, intransit_orders)}%)"),
+    unsafe_allow_html=True
 )
+
 
 st.divider()
 

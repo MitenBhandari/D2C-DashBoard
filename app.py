@@ -48,12 +48,13 @@ else:
 st.sidebar.header("Filters")
 
 date_range = st.sidebar.date_input(
-    "Devx Order Date Range",
+    "UC Order Date Range",
     [
-        df["Devx Order Date (Date)"].min(),
-        df["Devx Order Date (Date)"].max()
+        df["UC Order Date (Date)"].min(),
+        df["UC Order Date (Date)"].max()
     ]
 )
+
 
 facility_filter = st.sidebar.multiselect(
     "Facility",
@@ -81,8 +82,8 @@ filtered_df = df.copy()
 
 if date_range:
     filtered_df = filtered_df[
-        (filtered_df["Devx Order Date (Date)"] >= pd.to_datetime(date_range[0])) &
-        (filtered_df["Devx Order Date (Date)"] <= pd.to_datetime(date_range[1]))
+        (filtered_df["UC Order Date (Date)"] >= pd.to_datetime(date_range[0])) &
+        (filtered_df["UC Order Date (Date)"] <= pd.to_datetime(date_range[1]))
     ]
 
 if facility_filter:
@@ -117,6 +118,9 @@ delivered_orders = is_delivered.sum()
 rto_orders = is_rto.sum()
 intransit_orders = is_intransit.sum()
 
+def pct(part, whole):
+    return round((part / whole) * 100, 1) if whole > 0 else 0
+
 # Delivered SLA
 delivered_in_tat = (
     filtered_df.loc[is_delivered, "Placed to Delivery TAT Status"]
@@ -134,9 +138,9 @@ delivered_out_tat = (
     .sum()
 )
 
-# In-Transit SLA
+# In-Transit SLA (Pickup → Delivery)
 intransit_in_tat = (
-    filtered_df.loc[is_intransit, "Placed to Delivery TAT Status"]
+    filtered_df.loc[is_intransit, "Pickup to Delivery TAT Status"]
     .astype(str)
     .str.lower()
     .eq("intat")
@@ -144,12 +148,13 @@ intransit_in_tat = (
 )
 
 intransit_out_tat = (
-    filtered_df.loc[is_intransit, "Placed to Delivery TAT Status"]
+    filtered_df.loc[is_intransit, "Pickup to Delivery TAT Status"]
     .astype(str)
     .str.lower()
     .eq("outtat")
     .sum()
 )
+
 
 
 # ---------------- DASHBOARD HEADER ----------------
@@ -158,20 +163,54 @@ st.title("Order Operations Dashboard")
 c1, c2, c3 = st.columns(3)
 
 # ---------------- Column 1: Overall ----------------
-c1.metric("Total Orders", total_orders)
-c1.metric("RTO", rto_orders)
-c1.metric("Reshipped", reshipped_orders)
+c1.metric(
+    "Total Orders",
+    total_orders
+)
+c1.metric(
+    "RTO",
+    rto_orders,
+    f"{pct(rto_orders, total_orders)}%"
+)
+c1.metric(
+    "Reshipped",
+    reshipped_orders,
+    f"{pct(reshipped_orders, total_orders)}%"
+)
 
 # ---------------- Column 2: Delivered ----------------
-c2.metric("Delivered", delivered_orders)
-c2.metric("Delivered In-TAT", delivered_in_tat)
-c2.metric("Delivered Out-TAT", delivered_out_tat)
+c2.metric(
+    "Delivered",
+    delivered_orders,
+    f"{pct(delivered_orders, total_orders)}%"
+)
+c2.metric(
+    "Delivered In-TAT",
+    delivered_in_tat,
+    f"{pct(delivered_in_tat, delivered_orders)}%"
+)
+c2.metric(
+    "Delivered Out-TAT",
+    delivered_out_tat,
+    f"{pct(delivered_out_tat, delivered_orders)}%"
+)
 
 # ---------------- Column 3: In-Transit ----------------
-c3.metric("In Transit", intransit_orders)
-c3.metric("In-Transit In-TAT", intransit_in_tat)
-c3.metric("In-Transit Out-TAT", intransit_out_tat)
-
+c3.metric(
+    "In Transit",
+    intransit_orders,
+    f"{pct(intransit_orders, total_orders)}%"
+)
+c3.metric(
+    "In-Transit In-TAT",
+    intransit_in_tat,
+    f"{pct(intransit_in_tat, intransit_orders)}%"
+)
+c3.metric(
+    "In-Transit Out-TAT",
+    intransit_out_tat,
+    f"{pct(intransit_out_tat, intransit_orders)}%"
+)
 
 st.divider()
 
@@ -330,7 +369,7 @@ intransit_df = filtered_df[
 
 intransit_agg = (
     intransit_df
-    .groupby("Placed to Delivery TAT Status")
+    .groupby("Pickup to Delivery TAT Status")
     .size()
     .reset_index(name="Count")
 )
@@ -341,10 +380,10 @@ intransit_agg["Percentage"] = (
 
 intransit_fig = px.bar(
     intransit_agg,
-    x="Placed to Delivery TAT Status",
+    x="Pickup to Delivery TAT Status",
     y="Count",
     text=intransit_agg["Percentage"].astype(str) + "%",
-    title="In-Transit Orders SLA Status"
+    title="In-Transit Orders SLA Status (Pickup to Delivery)"
 )
 
 intransit_fig.update_traces(
@@ -490,4 +529,9 @@ st.dataframe(filtered_df, use_container_width=True)
 #python -m streamlit run app.py
 #python -m venv venv
 #.\venv\Scripts\Activate.ps1
+
+#git add requirements.txt
+#git commit -m "Add requirements"
+#git push
+
 

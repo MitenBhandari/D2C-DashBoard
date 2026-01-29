@@ -267,6 +267,7 @@ fig = px.scatter_mapbox(
     lon="longitude",
     size="Orders",
     color="Orders",
+    color_continuous_scale="Blues_r",
     zoom=4,
     hover_name="Order Pincode",
     title="Order Density Map"

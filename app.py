@@ -225,7 +225,14 @@ st.divider()
 
 @st.cache_data
 def load_pincode():
-    return pd.read_csv("pincode.csv")
+    df = pd.read_csv("pincode.csv")
+    df = df.rename(columns={
+        "Pincode": "pincode",
+        "Latitude": "latitude",
+        "Longitude": "longitude"
+    })
+    return df
+
 
 pincode_master = load_pincode()
 

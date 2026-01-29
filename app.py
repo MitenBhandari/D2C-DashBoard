@@ -331,7 +331,7 @@ trend_fig.update_traces(
 )
 
 trend_fig.update_layout(
-    yaxis=dict(range=[0, 100]),
+    yaxis=dict(range=[80, 100]),
     margin={"r":0,"t":40,"l":0,"b":0}
 )
 

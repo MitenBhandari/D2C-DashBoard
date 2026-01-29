@@ -380,8 +380,19 @@ fig = px.scatter_mapbox(
 
 fig.update_layout(
     mapbox_style="open-street-map",
+    mapbox=dict(
+        center=dict(lat=22.9734, lon=78.6569),  # 🇮🇳 India center
+        zoom=4.2,
+        bounds=dict(
+            west=68.0,
+            east=97.5,
+            south=6.0,
+            north=36.5
+        )
+    ),
     margin={"r":0,"t":40,"l":0,"b":0}
 )
+
 
 st.plotly_chart(fig, use_container_width=True)
 

@@ -234,6 +234,74 @@ pincode_provider_courier = pincode_provider_courier.sort_values(
 
 st.dataframe(pincode_provider_courier, use_container_width=True)
 
+# ===============================
+# Pivot 5: Pickup to Delivery TAT – Pincode × Provider (Provider as Columns)
+# ===============================
+st.subheader("📊 Pickup to Delivery TAT – Pincode Level (Provider Column View | Delivered Only)")
+
+# Filter Delivered Orders
+delivered_df = df[df["Final Status"] == "DELIVERED"]
+
+total_delivered_orders = delivered_df["UNICOM Order ID"].count()
+
+if total_delivered_orders == 0:
+    st.warning("No delivered orders in selected date range.")
+    st.stop()
+
+# Group only by Pincode + Provider (Courier removed)
+provider_pivot_base = (
+    delivered_df.groupby(
+        ["Order Pincode", "Shipping provider"]
+    )
+    .agg(
+        Total_Orders=("UNICOM Order ID", "count"),
+        InTAT_Delivered=("Pickup to Delivery TAT Status", lambda x: (x == "INTAT").sum()),
+        OutTAT_Delivered=("Pickup to Delivery TAT Status", lambda x: (x == "OUTTAT").sum())
+    )
+    .reset_index()
+)
+
+# Percent calculations
+provider_pivot_base["InTAT %"] = (
+    provider_pivot_base["InTAT_Delivered"] /
+    provider_pivot_base["Total_Orders"] * 100
+).round(2)
+
+provider_pivot_base["OutTAT %"] = (
+    provider_pivot_base["OutTAT_Delivered"] /
+    provider_pivot_base["Total_Orders"] * 100
+).round(2)
+
+provider_pivot_base["% Vol"] = (
+    provider_pivot_base["Total_Orders"] /
+    total_delivered_orders * 100
+).round(2)
+
+# Pivot → Provider as Columns
+final_provider_table = provider_pivot_base.pivot(
+    index="Order Pincode",
+    columns="Shipping provider",
+    values=[
+        "Total_Orders",
+        "% Vol",
+        "InTAT_Delivered",
+        "InTAT %",
+        "OutTAT_Delivered",
+        "OutTAT %"
+    ]
+)
+
+# Flatten MultiIndex columns
+final_provider_table.columns = [
+    f"{provider} {metric.replace('_', ' ')}"
+    for metric, provider in final_provider_table.columns
+]
+
+final_provider_table = final_provider_table.fillna(0).reset_index()
+
+st.dataframe(final_provider_table, use_container_width=True)
+
+
 
 
 #python -m streamlit run int.py

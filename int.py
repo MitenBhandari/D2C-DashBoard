@@ -185,16 +185,23 @@ st.dataframe(zone_pivot, use_container_width=True)
 # ===============================
 st.subheader("📍 Pickup to Delivery TAT – Pincode Level (Provider × Courier | Delivered Only)")
 
+# Ensure clean column names
+df.columns = df.columns.str.strip()
+
 # Filter Delivered Orders Only
 delivered_df = df[df["Final Status"] == "DELIVERED"]
 
-# Total delivered orders (for % volume calculation)
+# Total delivered orders
 total_delivered_orders = delivered_df["UNICOM Order ID"].count()
 
-# Grouping
+if total_delivered_orders == 0:
+    st.warning("No delivered orders in selected date range.")
+    st.stop()
+
+# Grouping using CORRECT column names
 pincode_provider_courier = (
     delivered_df.groupby(
-        ["Pincode", "Shipping provider", "Shipping Courier"]
+        ["Order Pincode", "Shipping provider", "Shipping Courier"]
     )
     .agg(
         Total_Orders=("UNICOM Order ID", "count"),
@@ -219,9 +226,9 @@ pincode_provider_courier["OutTAT %"] = (
     pincode_provider_courier["Total_Orders"] * 100
 ).round(2)
 
-# Sort for readability
+# Sort properly
 pincode_provider_courier = pincode_provider_courier.sort_values(
-    ["Pincode", "Shipping provider", "Total_Orders"],
+    ["Order Pincode", "Shipping provider", "Total_Orders"],
     ascending=[True, True, False]
 )
 

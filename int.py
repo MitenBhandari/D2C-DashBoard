@@ -180,6 +180,54 @@ zone_pivot["OutTAT %"] = (zone_pivot["OutTAT"] / zone_pivot["Total_Orders"] * 10
 
 st.dataframe(zone_pivot, use_container_width=True)
 
+# ===============================
+# Pivot 4: Pickup to Delivery TAT – Pincode × Provider × Courier
+# ===============================
+st.subheader("📍 Pickup to Delivery TAT – Pincode Level (Provider × Courier | Delivered Only)")
+
+# Filter Delivered Orders Only
+delivered_df = df[df["Final Status"] == "DELIVERED"]
+
+# Total delivered orders (for % volume calculation)
+total_delivered_orders = delivered_df["UNICOM Order ID"].count()
+
+# Grouping
+pincode_provider_courier = (
+    delivered_df.groupby(
+        ["Pincode", "Shipping provider", "Shipping Courier"]
+    )
+    .agg(
+        Total_Orders=("UNICOM Order ID", "count"),
+        InTAT_Delivered=("Pickup to Delivery TAT Status", lambda x: (x == "INTAT").sum()),
+        OutTAT_Delivered=("Pickup to Delivery TAT Status", lambda x: (x == "OUTTAT").sum())
+    )
+    .reset_index()
+)
+
+# Percent Calculations
+pincode_provider_courier["% Vol"] = (
+    pincode_provider_courier["Total_Orders"] / total_delivered_orders * 100
+).round(2)
+
+pincode_provider_courier["InTAT %"] = (
+    pincode_provider_courier["InTAT_Delivered"] /
+    pincode_provider_courier["Total_Orders"] * 100
+).round(2)
+
+pincode_provider_courier["OutTAT %"] = (
+    pincode_provider_courier["OutTAT_Delivered"] /
+    pincode_provider_courier["Total_Orders"] * 100
+).round(2)
+
+# Sort for readability
+pincode_provider_courier = pincode_provider_courier.sort_values(
+    ["Pincode", "Shipping provider", "Total_Orders"],
+    ascending=[True, True, False]
+)
+
+st.dataframe(pincode_provider_courier, use_container_width=True)
+
+
 
 #python -m streamlit run int.py
 #python -m venv venv

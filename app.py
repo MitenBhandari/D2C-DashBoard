@@ -382,7 +382,7 @@ fig = px.scatter_mapbox(
 map_df = map_df[
     (map_df["latitude"] >= 4.5) &
     (map_df["latitude"] <= 37) &
-    (map_df["longitude"] >= 80) &
+    (map_df["longitude"] >= 82.5) &
     (map_df["longitude"] <= 97.5)
 ]
 
@@ -739,7 +739,7 @@ st.dataframe(filtered_df, use_container_width=True)
 #git push
 
 #git add app.py 
-#git commit -m "Add All"
+#git commit -m "Add All" 
 #git push
 
 

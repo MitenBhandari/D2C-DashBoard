@@ -378,6 +378,14 @@ fig = px.scatter_mapbox(
     title="Order Density Map"
 )
 
+# 🔒 Force India-only coordinates
+map_df = map_df[
+    (map_df["latitude"] >= 4.5) &
+    (map_df["latitude"] <= 37) &
+    (map_df["longitude"] >= 68) &
+    (map_df["longitude"] <= 97.5)
+]
+
 fig.update_layout(
     mapbox_style="open-street-map",
     height=750,

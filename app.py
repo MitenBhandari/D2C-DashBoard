@@ -386,7 +386,7 @@ fig.update_layout(
         bounds=dict(
             west=68.0,
             east=97.5,
-            south=6.0,
+            south=10.0,
             north=36.5
         )
     ),

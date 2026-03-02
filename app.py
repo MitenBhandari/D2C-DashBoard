@@ -382,7 +382,11 @@ fig.update_layout(
     mapbox_style="open-street-map",
     height=750,
     mapbox=dict(
-        fitbounds="locations"
+        center=dict(
+            lat=map_df["latitude"].mean(),
+            lon=map_df["longitude"].mean()
+        ),
+        zoom=4.2
     ),
     margin={"r":0,"t":40,"l":0,"b":0}
 )

@@ -382,7 +382,7 @@ fig = px.scatter_mapbox(
 map_df = map_df[
     (map_df["latitude"] >= 4.5) &
     (map_df["latitude"] <= 37) &
-    (map_df["longitude"] >= 75) &
+    (map_df["longitude"] >= 80) &
     (map_df["longitude"] <= 97.5)
 ]
 

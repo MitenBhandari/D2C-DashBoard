@@ -8,6 +8,18 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
@@ -30,7 +42,7 @@ def load_data():
 
 df = load_data()
 
-# ---------------- DERIVED COLUMNS ----------------
+# Create Reshipped flag
 if "Reshipped" in df.columns:
     df["Reshipped_Flag"] = (
         df["Reshipped"]
@@ -38,10 +50,29 @@ if "Reshipped" in df.columns:
         .astype(str)
         .str.strip()
         .str.lower()
-        .isin(["yes", "y", "true", "1", "reshipped"])
+        .isin(["yes","y","true","1","reshipped"])
     )
 else:
     df["Reshipped_Flag"] = False
+
+
+@st.cache_data
+def load_consolidated():
+    df = pd.read_excel("Consolidated_Report.xlsx")
+    return df
+consolidated_df = load_consolidated()
+
+merged_df = df.merge(
+    consolidated_df[[
+        "Devx Order ID",
+        "New AWB Status",
+        "Delivery Delay By"
+    ]],
+    on="Devx Order ID",
+    how="left"
+)
+
+merged_df["Reshipped_Flag"] = merged_df["Reshipped_Flag"].fillna(False)
 
 
 # ---------------- SIDEBAR FILTERS ----------------
@@ -158,94 +189,12 @@ intransit_out_tat = (
 def green(text):
     return f"<span style='color:#2ecc71; font-weight:600'>{text}</span>"
 
+# ---------------- EXECUTIVE SUMMARY CALCULATIONS ----------------
 
-# ---------------- DASHBOARD HEADER ----------------
-st.title("Order Operations Dashboard")
-
-c1, c2, c3 = st.columns(3)
-
-# ---------------- Column 1: Overall ----------------
-c1.markdown("### Total Orders")
-c1.markdown(green(f"{total_orders}"), unsafe_allow_html=True)
-
-c1.markdown("### RTO")
-c1.markdown(
-    green(f"{rto_orders} ({pct(rto_orders, total_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-c1.markdown("### Reshipped")
-c1.markdown(
-    green(f"{reshipped_orders} ({pct(reshipped_orders, total_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-
-# ---------------- Column 2: Delivered ----------------
-c2.markdown("### Delivered")
-c2.markdown(
-    green(f"{delivered_orders} ({pct(delivered_orders, total_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-c2.markdown("### Delivered In-TAT")
-c2.markdown(
-    green(f"{delivered_in_tat} ({pct(delivered_in_tat, delivered_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-c2.markdown("### Delivered Out-TAT")
-c2.markdown(
-    green(f"{delivered_out_tat} ({pct(delivered_out_tat, delivered_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-
-# ---------------- Column 3: In-Transit ----------------
-c3.markdown("### In-Transit")
-c3.markdown(
-    green(f"{intransit_orders} ({pct(intransit_orders, total_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-c3.markdown("### In-Transit In-TAT")
-c3.markdown(
-    green(f"{intransit_in_tat} ({pct(intransit_in_tat, intransit_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-c3.markdown("### In-Transit Out-TAT")
-c3.markdown(
-    green(f"{intransit_out_tat} ({pct(intransit_out_tat, intransit_orders)}%)"),
-    unsafe_allow_html=True
-)
-
-
-st.divider()
-
-@st.cache_data
-def load_pincode():
-    df = pd.read_csv("pincode.csv")
-
-    # Rename columns to match app expectations
-    df = df.rename(columns={
-        "Pincode": "pincode",
-        "Latitude": "latitude",
-        "Longitude": "longitude"
-    })
-
-    # 🔴 CRITICAL FIX: force numeric conversion
-    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
-
-    return df
-
-# ---------------- EXECUTIVE SUMMARY LINE ----------------
-
-# Overall Delivered SLA
+# Overall Delivered SLA %
 overall_intat_pct = pct(delivered_in_tat, delivered_orders)
 
-# Zone risk (Delivered orders only)
+# Zone risk (Delivered orders)
 zone_risk = (
     filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
     .groupby("Zone")
@@ -257,13 +206,16 @@ zone_risk = (
     .reset_index()
 )
 
-zone_risk["outtat_pct"] = (zone_risk["outtat"] / zone_risk["total"] * 100).round(1)
+if not zone_risk.empty:
+    zone_risk["outtat_pct"] = (zone_risk["outtat"] / zone_risk["total"] * 100).round(1)
+    worst_zone_row = zone_risk.sort_values("outtat_pct", ascending=False).iloc[0]
+    worst_zone = worst_zone_row["Zone"]
+    worst_zone_pct = worst_zone_row["outtat_pct"]
+else:
+    worst_zone = "N/A"
+    worst_zone_pct = 0
 
-worst_zone_row = zone_risk.sort_values("outtat_pct", ascending=False).iloc[0]
-worst_zone = worst_zone_row["Zone"]
-worst_zone_pct = worst_zone_row["outtat_pct"]
-
-# Courier risk (Delivered orders only)
+# Courier risk
 courier_risk = (
     filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
     .groupby("Shipping Courier")
@@ -275,32 +227,158 @@ courier_risk = (
     .reset_index()
 )
 
-courier_risk["outtat_pct"] = (
-    courier_risk["outtat"] / courier_risk["total"] * 100
-).round(1)
+if not courier_risk.empty:
+    courier_risk["outtat_pct"] = (courier_risk["outtat"] / courier_risk["total"] * 100).round(1)
+    worst_courier = courier_risk.sort_values("outtat_pct", ascending=False).iloc[0]["Shipping Courier"]
+else:
+    worst_courier = "N/A"
 
-worst_courier = courier_risk.sort_values(
-    "outtat_pct", ascending=False
-).iloc[0]["Shipping Courier"]
+# ---------------- DASHBOARD HEADER ----------------
+st.title("Order Operations Dashboard")
 
-# Render summary line
-st.markdown(
-    f"""
-    **📌 Overall Delivery SLA:** {overall_intat_pct}% In-TAT  
-    | **Biggest Risk:** {worst_zone} Zone ({worst_zone_pct}% Out-TAT)  
-    | **Worst Courier:** {worst_courier}
-    """
-)
+tab_overview, tab_intransit, tab_delivered, tab_reshipped, tab_rto, tab_pickup = st.tabs([
+    "Overview",
+    "In Transit",
+    "Delivered",
+    "Reshipped",
+    "RTO",
+    "Pickup Pending"
+])
+
+
+
+with tab_overview:
+
+    # ---------------- KPI ROW ----------------
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Total Orders", total_orders)
+
+    c2.metric(
+        "Delivered",
+        delivered_orders,
+        f"{pct(delivered_orders, total_orders)}%"
+    )
+
+    c3.metric(
+        "In Transit",
+        intransit_orders,
+        f"{pct(intransit_orders, total_orders)}%"
+    )
+
+    c4.metric(
+        "RTO",
+        rto_orders,
+        f"{pct(rto_orders, total_orders)}%"
+    )
+
+    # ---------------- SLA ROW ----------------
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("In Transit SLA")
+
+        intransit_df = filtered_df[
+            filtered_df["Final Status"].str.lower().str.startswith("in-transit")
+        ]
+
+        intransit_sla = (
+            intransit_df
+            .groupby("Pickup to Delivery TAT Status")
+            .size()
+            .reset_index(name="Orders")
+        )
+
+        fig = px.pie(
+            intransit_sla,
+            names="Pickup to Delivery TAT Status",
+            values="Orders",
+            height=320
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Delivered SLA")
+
+        delivered_sla = (
+            filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
+            .groupby("Placed to Delivery TAT Status")
+            .size()
+            .reset_index(name="Orders")
+        )
+
+        fig = px.pie(
+            delivered_sla,
+            names="Placed to Delivery TAT Status",
+            values="Orders",
+            height=320
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ---------------- OPERATIONS ROW ----------------
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.subheader("Reshipped Outcomes")
+
+        reship_df = merged_df[merged_df["Reshipped_Flag"]]
+
+        reship_summary = (
+            reship_df
+            .dropna(subset=["New AWB Status"])
+            .groupby("New AWB Status")
+            .size()
+            .reset_index(name="Orders")
+        )
+
+        fig = px.bar(
+            reship_summary,
+            x="New AWB Status",
+            y="Orders",
+            height=320
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        st.subheader("RTO by Zone")
+
+        rto_df = filtered_df[
+            filtered_df["Final Status"].str.lower() == "rto"
+        ]
+
+        rto_summary = rto_df.groupby("Zone").size().reset_index(name="Orders")
+
+        fig = px.bar(
+            rto_summary,
+            x="Zone",
+            y="Orders",
+            height=320
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ---------------- EXEC SUMMARY ----------------
+    st.markdown(
+        f"""
+        **📌 Overall Delivery SLA:** {overall_intat_pct}% In-TAT  
+        | **Biggest Risk:** {worst_zone} Zone ({worst_zone_pct}% Out-TAT)  
+        | **Worst Courier:** {worst_courier}
+        """
+    )
 
 # ---------------- DELIVERED IN-TAT TREND ----------------
 
-trend_df = filtered_df[
+with tab_delivered:
+    trend_df = filtered_df[
     filtered_df["Final Status"].str.lower() == "delivered"
 ].copy()
 
-trend_df["order_date"] = trend_df["UC Order Date (Date)"].dt.date
+    trend_df["order_date"] = trend_df["UC Order Date (Date)"].dt.date
 
-trend_agg = (
+    trend_agg = (
     trend_df
     .groupby("order_date")
     .agg(
@@ -308,292 +386,107 @@ trend_agg = (
         delivered_intat=("Placed to Delivery TAT Status",
                           lambda x: (x.str.lower() == "intat").sum())
     )
-    .reset_index()
-)
+    .reset_index())
 
-trend_agg["Delivered In-TAT %"] = (
-    trend_agg["delivered_intat"] / trend_agg["delivered_orders"] * 100
-).round(1)
+    trend_agg["Delivered In-TAT %"] = (
+    trend_agg["delivered_intat"] / trend_agg["delivered_orders"] * 100).round(1)
+    
+    st.subheader("Delivered In-TAT Trend")
 
-st.subheader("Delivered In-TAT Trend")
-
-trend_fig = px.line(
+    trend_fig = px.line(
     trend_agg,
     x="order_date",
     y="Delivered In-TAT %",
     markers=True,
-    title="Delivered In-TAT % Over Time"
-)
+    title="Delivered In-TAT % Over Time")
 
-trend_fig.update_traces(
+    trend_fig.update_traces(
     line=dict(width=3),
-    hovertemplate="Date: %{x}<br>In-TAT: %{y}%<extra></extra>"
-)
+    hovertemplate="Date: %{x}<br>In-TAT: %{y}%<extra></extra>")
 
-trend_fig.update_layout(
+    trend_fig.update_layout(
     yaxis=dict(range=[80, 100]),
-    margin={"r":0,"t":40,"l":0,"b":0}
-)
+    margin={"r":0,"t":40,"l":0,"b":0})
 
 # Optional SLA target line (recommended)
-trend_fig.add_hline(
+    trend_fig.add_hline(
     y=95,
     line_dash="dash",
     annotation_text="Target: 95%",
-    annotation_position="top left"
-)
+    annotation_position="top left")
 
-st.plotly_chart(trend_fig, use_container_width=True)
+    st.plotly_chart(trend_fig, use_container_width=True, key="delivered_trend")
 
-
-pincode_master = load_pincode()
-
-map_df_base = filtered_df.merge(
-    pincode_master,
-    left_on="Order Pincode",
-    right_on="pincode",
-    how="left"
-)
-
-
-st.subheader("Order Density by Pincode")
-
-map_df = (
-    map_df_base
-    .dropna(subset=["latitude", "longitude"])
-    .groupby(["Order Pincode", "latitude", "longitude"])
-    .size()
-    .reset_index(name="Orders")
-)
-
-fig = px.scatter_mapbox(
-    map_df,
-    lat="latitude",
-    lon="longitude",
-    size="Orders",
-    color="Orders",
-    color_continuous_scale="Blues_r",
-    zoom=4,
-    hover_name="Order Pincode",
-    title="Order Density Map"
-)
-
-# 🔒 Force India-only coordinates
-map_df = map_df[
-    (map_df["latitude"] >= 4.5) &
-    (map_df["latitude"] <= 37) &
-    (map_df["longitude"] >= 82.5) &
-    (map_df["longitude"] <= 97.5)
-]
-
-fig.update_layout(
-    mapbox_style="open-street-map",
-    height=750,
-    mapbox=dict(
-        center=dict(
-            lat=map_df["latitude"].mean(),
-            lon=map_df["longitude"].mean()
-        ),
-        zoom=4.2
-    ),
-    margin={"r":0,"t":40,"l":0,"b":0}
-)
-
-
-st.plotly_chart(fig, use_container_width=True)
-
-
-st.subheader("SLA Split (Delivered vs In-Transit)")
-
-status_choice = st.radio(
-    "Select Order Type",
-    ["Delivered", "In-Transit"],
-    horizontal=True
-)
-
-if status_choice == "Delivered":
-    sla_df = filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
-else:
-    sla_df = filtered_df[
-        filtered_df["Final Status"].str.lower().str.startswith("in-transit")
-    ]
-
-status_col = (
-    "Placed to Delivery TAT Status"
-    if status_choice == "Delivered"
-    else "Placed to Delivery TAT Status"
-)
-
-sla_split = (
-    sla_df
-    .groupby(status_col)
-    .size()
-    .reset_index(name="Count")
-)
-
-
-sla_pie = px.pie(
-    sla_split,
-    names="Placed to Delivery TAT Status",
-    values="Count",
-    title=f"{status_choice} SLA Split"
-)
-
-st.plotly_chart(sla_pie, use_container_width=True)
-
-
-# ---------------- STATUS DISTRIBUTION ----------------
-st.subheader("Final Order Status Distribution")
-
-status_fig = px.pie(
-    filtered_df,
-    names="Final Status",
-    title="Order Final Status Split"
-)
-
-st.plotly_chart(status_fig, use_container_width=True)
 
 # ---------------- Dispatch Performance ----------------
-st.subheader("Dispatch Performance")
+with tab_pickup:
+    st.subheader("Dispatch Performance")
 
-dispatch_agg = (
+    dispatch_agg = (
     filtered_df
     .groupby(["Facility", "Dispatch TAT Status"])
     .size()
-    .reset_index(name="Count")
-)
+    .reset_index(name="Count"))
 
-dispatch_agg["Percentage"] = (
+    dispatch_agg["Percentage"] = (
     dispatch_agg["Count"] /
-    dispatch_agg.groupby("Facility")["Count"].transform("sum") * 100
-).round(1)
+    dispatch_agg.groupby("Facility")["Count"].transform("sum") * 100).round(1)
 
-dispatch_fig = px.bar(
+    dispatch_fig = px.bar(
     dispatch_agg,
     x="Facility",
     y="Count",
     color="Dispatch TAT Status",
     text=dispatch_agg["Percentage"].astype(str) + "%",
-    title="Dispatch TAT by Facility"
-)
+    title="Dispatch TAT by Facility")
 
-dispatch_fig.update_traces(
+    dispatch_fig.update_traces(
     hovertemplate="Count: %{y}<extra></extra>"
 )
 
-st.plotly_chart(dispatch_fig, use_container_width=True)
+    st.plotly_chart(dispatch_fig, use_container_width=True, key="dispatch_performance")
+
 
 # ---------------- DELIVERY PERFORMANCE ----------------
-st.subheader("Delivery Performance")
 
-delivery_agg = (
+with tab_delivered:
+    st.subheader("Delivery Performance")
+
+    delivery_agg = (
     filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
     .groupby(["Zone", "Placed to Delivery TAT Status"])
     .size()
-    .reset_index(name="Count")
-)
+    .reset_index(name="Count"))
 
-delivery_agg["Percentage"] = (
+    delivery_agg["Percentage"] = (
     delivery_agg["Count"] /
-    delivery_agg.groupby("Zone")["Count"].transform("sum") * 100
-).round(1)
+    delivery_agg.groupby("Zone")["Count"].transform("sum") * 100).round(1)
 
-delivery_fig = px.bar(
+    delivery_fig = px.bar(
     delivery_agg,
     x="Zone",
     y="Count",
     color="Placed to Delivery TAT Status",
     text=delivery_agg["Percentage"].astype(str) + "%",
-    title="Placed to Delivery TAT by Zone"
-)
+    title="Placed to Delivery TAT by Zone")
 
-delivery_fig.update_traces(
-    hovertemplate="Count: %{y}<extra></extra>"
-)
+    delivery_fig.update_traces(
+    hovertemplate="Count: %{y}<extra></extra>")
 
-st.plotly_chart(delivery_fig, use_container_width=True)
-
-
-
-# ---------------- CONSUMER FACING DELIVERY PERFORMANCE ----------------
-st.subheader("Consumer Facing Delivery Performance (Delivered Orders Only)")
-
-consumer_delivery_df = filtered_df[
-    filtered_df["Final Status"].astype(str).str.lower() == "delivered"
-]
-
-consumer_delivery_agg = (
-    consumer_delivery_df
-    .groupby(["Zone", "Consumer to Delivery TAT Status"])
-    .size()
-    .reset_index(name="Count")
-)
-
-consumer_delivery_agg["Percentage"] = (
-    consumer_delivery_agg["Count"] /
-    consumer_delivery_agg.groupby("Zone")["Count"].transform("sum") * 100
-).round(1)
-
-consumer_delivery_fig = px.bar(
-    consumer_delivery_agg,
-    x="Zone",
-    y="Count",
-    color="Consumer to Delivery TAT Status",
-    text=consumer_delivery_agg["Percentage"].astype(str) + "%",
-    title="Consumer Facing Placed to Delivery TAT (Delivered Orders)"
-)
-
-consumer_delivery_fig.update_traces(
-    hovertemplate="Count: %{y}<extra></extra>"
-)
-
-st.plotly_chart(consumer_delivery_fig, use_container_width=True)
-
-# ---------------- IN-TRANSIT SLA PERFORMANCE ----------------
-st.subheader("In-Transit SLA Performance")
-
-intransit_df = filtered_df[
-    filtered_df["Final Status"].str.lower().str.startswith("in-transit")
-]
-
-intransit_agg = (
-    intransit_df
-    .groupby("Pickup to Delivery TAT Status")
-    .size()
-    .reset_index(name="Count")
-)
-
-intransit_agg["Percentage"] = (
-    intransit_agg["Count"] / intransit_agg["Count"].sum() * 100
-).round(1)
-
-intransit_fig = px.bar(
-    intransit_agg,
-    x="Pickup to Delivery TAT Status",
-    y="Count",
-    text=intransit_agg["Percentage"].astype(str) + "%",
-    title="In-Transit Orders SLA Status (Pickup to Delivery)"
-)
-
-intransit_fig.update_traces(
-    hovertemplate="Count: %{y}<extra></extra>"
-)
-
-st.plotly_chart(intransit_fig, use_container_width=True)
-
-
+    st.plotly_chart(delivery_fig, use_container_width=True, key="zone_delivery_sla")
 
 # ---------------- SHIPPING PROVIDER PERFORMANCE ----------------
-st.subheader("Shipping Provider Load Distribution")
+with tab_delivered:
+    st.subheader("Shipping Provider Load Distribution")
 
-provider_perf = (
+    provider_perf = (
     filtered_df
     .groupby("Shipping provider")
     .size()
     .reset_index(name="Count")
 )
 
-provider_fig = px.pie(
+    provider_fig = px.pie(
     provider_perf,
     names="Shipping provider",
     values="Count",
@@ -601,26 +494,23 @@ provider_fig = px.pie(
     hole=0.4
 )
 
-provider_fig.update_traces(
+    provider_fig.update_traces(
     hovertemplate="Provider: %{label}<br>Orders: %{value}<extra></extra>"
 )
 
-selected_provider = st.plotly_chart(
-    provider_fig,
-    use_container_width=True
-)
+    selected_provider = st.plotly_chart(provider_fig, use_container_width=True, key="provider_load")
 
 
-st.subheader("Shipping Provider SLA Performance")
+    st.subheader("Shipping Provider SLA Performance")
 
-provider_sla = (
+    provider_sla = (
     filtered_df
     .groupby(["Shipping provider", "Placed to Delivery TAT Status"])
     .size()
     .reset_index(name="Count")
 )
 
-provider_sla_fig = px.bar(
+    provider_sla_fig = px.bar(
     provider_sla,
     x="Shipping provider",
     y="Count",
@@ -629,103 +519,147 @@ provider_sla_fig = px.bar(
     text="Count"
 )
 
-provider_sla_fig.update_traces(
+    provider_sla_fig.update_traces(
     hovertemplate="Count: %{y}<extra></extra>"
 )
 
-st.plotly_chart(provider_sla_fig, use_container_width=True)
+    st.plotly_chart(provider_sla_fig, use_container_width=True, key="provider_sla")   
+    
+    
+with tab_intransit:
+    st.subheader("In Transit SLA")
 
+    intransit_df = merged_df[
+    merged_df["Final Status"].str.lower().str.startswith("in-transit")
+].copy()
+    
+    intransit_df["Delivery Delay By"] = pd.to_numeric(
+    intransit_df["Delivery Delay By"], errors="coerce")
 
-# Courier breakup
-st.subheader("Courier Split for Selected Provider")
-
-provider = st.selectbox(
-    "Select Shipping Provider",
-    provider_perf["Shipping provider"]
+# Convert delay column to numeric
+    intransit_df["Delivery Delay By"] = pd.to_numeric(
+    intransit_df["Delivery Delay By"], errors="coerce"
 )
 
-courier_split = (
-    filtered_df[filtered_df["Shipping provider"] == provider]
-    .groupby("Shipping Courier")
+# Create delay buckets
+    def delay_bucket(row):
+
+        if str(row["Pickup to Delivery TAT Status"]).lower() == "intat":
+            return "In-TAT"
+
+        d = row["Delivery Delay By"]
+
+        if pd.isna(d):
+            return "Out-TAT"
+
+        elif d <= 2:
+            return "Out-TAT (0–2 days)"
+
+        elif d <= 5:
+            return "Out-TAT (2–5 days)"
+
+        else:
+            return "Out-TAT (5+ days)"
+
+    intransit_df["Delay Bucket"] = intransit_df.apply(delay_bucket, axis=1)
+
+# Aggregate data
+    intransit_sla = (
+    intransit_df
+    .groupby("Delay Bucket")
     .size()
-    .reset_index(name="Count")
-)
+    .reset_index(name="Orders"))
 
-courier_pie = px.pie(
-    courier_split,
-    names="Shipping Courier",
-    values="Count",
-    title=f"Courier Split – {provider}"
-)
+# Pie chart
+    fig = px.pie(
+    intransit_sla,
+    names="Delay Bucket",
+    values="Orders",
+    title="In Transit SLA Breakdown",
+    color="Delay Bucket",
+    color_discrete_map={
+        "In-TAT": "#2ecc71",
+        "Out-TAT (0–2 days)": "#f1c40f",
+        "Out-TAT (2–5 days)": "#e67e22",
+        "Out-TAT (5+ days)": "#e74c3c",
+        "Out-TAT": "#95a5a6"
+    })
 
-st.plotly_chart(courier_pie, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True, key="intransit_tab_sla")
+    
+    
+with tab_reshipped:
 
-st.subheader("Courier SLA Performance")
+    st.subheader("Reshipped Orders")
 
-# 🔽 Provider dropdown
-provider_for_courier_sla = st.selectbox(
-    "Select Shipping Provider for Courier SLA",
-    sorted(filtered_df["Shipping provider"].dropna().unique()),
-    key="courier_sla_provider"
-)
+    reship_df = merged_df[merged_df["Reshipped_Flag"]]
 
-# 🔍 Filter by selected provider
-courier_sla_df = filtered_df[
-    filtered_df["Shipping provider"] == provider_for_courier_sla
+    st.metric("Total Reshipped Orders", len(reship_df))
+
+    reship_summary = (
+        reship_df.groupby("New AWB Status")
+        .size()
+        .reset_index(name="Orders")
+    )
+
+    fig = px.bar(
+        reship_summary,
+        x="New AWB Status",
+        y="Orders",
+        color="New AWB Status",
+        title="Reshipped Outcome"
+    )
+
+    st.plotly_chart(fig, use_container_width=True, key="reshipped_tab_chart")
+    
+    
+with tab_rto:
+
+    st.subheader("RTO Orders")
+
+    rto_df = filtered_df[
+        filtered_df["Final Status"].str.lower() == "rto"
+    ]
+
+    st.metric("Total RTO Orders", len(rto_df))
+
+    rto_zone = (
+        rto_df.groupby("Zone")
+        .size()
+        .reset_index(name="Orders")
+    )
+
+    fig = px.bar(
+        rto_zone,
+        x="Zone",
+        y="Orders",
+        color="Zone",
+        title="RTO by Zone"
+    )
+
+    st.plotly_chart(fig, use_container_width=True, key="rto_tab_chart")
+
+with tab_pickup:
+    from datetime import datetime, timedelta
+
+    consolidated = consolidated_df
+
+    yesterday = datetime.today() - timedelta(days=1)
+
+    pending_df = consolidated[
+    (pd.to_datetime(consolidated["Ideal Dispatch Date"], errors="coerce") <= yesterday) &
+    (consolidated["CP Order Status"].str.lower().isin([
+        "awb registered",
+        "orderplaced",
+        "pickuppending"
+    ]))
 ]
 
-# 📊 Aggregate courier SLA
-courier_sla = (
-    courier_sla_df
-    .groupby(["Shipping Courier", "Placed to Delivery TAT Status"])
-    .size()
-    .reset_index(name="Count")
-)
+    st.subheader("Pickup Pending Orders")
 
-# 📈 Plot
-courier_sla_fig = px.bar(
-    courier_sla,
-    x="Shipping Courier",
-    y="Count",
-    color="Placed to Delivery TAT Status",
-    title=f"Courier-wise In-TAT vs Out-TAT – {provider_for_courier_sla}",
-    text="Count"
-)
+    st.metric("Pending Pickup Orders", len(pending_df))
 
-courier_sla_fig.update_traces(
-    hovertemplate="Courier: %{x}<br>Count: %{y}<extra></extra>"
-)
-
-st.plotly_chart(courier_sla_fig, use_container_width=True)
-
-
-st.subheader("Zone SLA Distribution (Delivered Orders)")
-
-zone_sla = (
-    filtered_df[filtered_df["Final Status"].str.lower() == "delivered"]
-    .groupby(["Zone", "Placed to Delivery TAT Status"])
-    .size()
-    .reset_index(name="Count")
-)
-
-zone = st.selectbox("Select Zone", zone_sla["Zone"].unique())
-
-zone_pie_df = zone_sla[zone_sla["Zone"] == zone]
-
-zone_pie = px.pie(
-    zone_pie_df,
-    names="Placed to Delivery TAT Status",
-    values="Count",
-    title=f"SLA Split – {zone}"
-)
-
-zone_pie.update_traces(
-    hovertemplate="Status: %{label}<br>Count: %{value}<extra></extra>"
-)
-
-st.plotly_chart(zone_pie, use_container_width=True)
-
-
+    st.dataframe(pending_df)
 
 # ---------------- DATA PREVIEW ----------------
 st.subheader("Filtered Data Preview")
